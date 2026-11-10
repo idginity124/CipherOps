@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img">
+  <title>CipherOps — Local autonomous AI agent with privacy guardrails</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#0a0d14"/>
+    </linearGradient>
+    <linearGradient id="accent-line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0"/>
+      <stop offset="30%" stop-color="#22d3ee" stop-opacity="0.9"/>
+      <stop offset="70%" stop-color="#a855f7" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="frame">
+      <rect x="1" y="1" width="1198" height="318" rx="24"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#frame)">
+    <!-- Background -->
+    <rect width="1200" height="320" fill="url(#bg)"/>
+
+    <!-- Ambient glow blobs -->
+    <circle cx="1150" cy="0"   r="300" fill="#22d3ee" opacity=".045"/>
+    <circle cx="50"   cy="320" r="200" fill="#a855f7" opacity=".035"/>
+    <circle cx="600"  cy="160" r="380" fill="#1e293b" opacity=".25"/>
+
+    <!-- Grid pattern (subtle) -->
+    <line x1="0" y1="80"  x2="1200" y2="80"  stroke="#1e293b" stroke-width="1"/>
+    <line x1="0" y1="240" x2="1200" y2="240" stroke="#1e293b" stroke-width="1"/>
+    <line x1="300" y1="0" x2="300" y2="320" stroke="#1e293b" stroke-width="1"/>
+    <line x1="900" y1="0" x2="900" y2="320" stroke="#1e293b" stroke-width="1"/>
+
+    <!-- Left decoration: terminal prompt lines -->
+    <text x="36" y="104" font-family="'Courier New',monospace" font-size="11" fill="#22d3ee" opacity=".55">$ cipherops chat</text>
+    <text x="36" y="122" font-family="'Courier New',monospace" font-size="11" fill="#64748b" opacity=".7">🧠 Step 1: Analyzing state...</text>
+    <text x="36" y="140" font-family="'Courier New',monospace" font-size="11" fill="#64748b" opacity=".7">⚙  execute_bash: ls -la src/</text>
+    <text x="36" y="158" font-family="'Courier New',monospace" font-size="11" fill="#22c55e" opacity=".7">   ↳ SUCCESS (Code 0)</text>
+    <text x="36" y="176" font-family="'Courier New',monospace" font-size="11" fill="#64748b" opacity=".7">🛡  PII filter: 0 matches</text>
+    <text x="36" y="194" font-family="'Courier New',monospace" font-size="11" fill="#64748b" opacity=".7">📋 Audit: event logged</text>
+    <text x="36" y="212" font-family="'Courier New',monospace" font-size="11" fill="#22d3ee" opacity=".45">▮</text>
+
+    <!-- Right decoration: shield / lock icon suggestion -->
+    <circle cx="1090" cy="145" r="52" fill="none" stroke="#a855f7" stroke-width="1" opacity=".3"/>
+    <circle cx="1090" cy="145" r="38" fill="none" stroke="#22d3ee" stroke-width="1" opacity=".25"/>
+    <circle cx="1090" cy="145" r="22" fill="#1e293b" opacity=".8"/>
+    <!-- Shield shape -->
+    <path d="M1090 123 l14 7 v14 c0 10 -14 18 -14 18 s-14 -8 -14 -18 v-14 z" fill="none" stroke="#22d3ee" stroke-width="1.5" opacity=".7"/>
+    <text x="1090" y="150" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#22d3ee" opacity=".8">🔒</text>
+
+    <!-- Thin accent line in the middle -->
+    <rect x="200" y="93" width="800" height="1" fill="url(#accent-line)" opacity=".6"/>
+    <rect x="200" y="227" width="800" height="1" fill="url(#accent-line)" opacity=".6"/>
+
+    <!-- Category tag -->
+    <text x="600" y="78"
+          text-anchor="middle"
+          font-family="Arial,sans-serif"
+          font-size="11"
+          fill="#22d3ee"
+          letter-spacing="3"
+          opacity=".85">PYTHON · OLLAMA · ON-PREMISE · KVKK / GDPR</text>
+
+    <!-- Main title -->
+    <text x="600" y="142"
+          text-anchor="middle"
+          font-family="Arial,sans-serif"
+          font-size="52"
+          font-weight="700"
+          fill="#f1f5f9">Cipher<tspan fill="#22d3ee">Ops</tspan></text>
+
+    <!-- Subtitle line 1 -->
+    <text x="600" y="183"
+          text-anchor="middle"
+          font-family="Arial,sans-serif"
+          font-size="22"
+          fill="#94a3b8">Local autonomous AI agent with privacy guardrails.</text>
+
+    <!-- Subtitle line 2 -->
+    <text x="600" y="212"
+          text-anchor="middle"
+          font-family="Arial,sans-serif"
+          font-size="22"
+          fill="#94a3b8">Runs entirely on your machine. No data leaves.</text>
+
+    <!-- Bottom pill badges -->
+    <!-- Badge 1: Human-in-the-Loop -->
+    <rect x="332" y="244" width="156" height="24" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="410" y="260" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#94a3b8">👤 Human-in-the-Loop</text>
+
+    <!-- Badge 2: Command Firewall -->
+    <rect x="500" y="244" width="136" height="24" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="568" y="260" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#94a3b8">🛡 Command Firewall</text>
+
+    <!-- Badge 3: Audit Log -->
+    <rect x="648" y="244" width="110" height="24" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="703" y="260" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#94a3b8">📋 Audit Log</text>
+
+    <!-- Badge 4: PII Redaction -->
+    <rect x="770" y="244" width="118" height="24" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="829" y="260" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#94a3b8">🔒 PII Redaction</text>
+  </g>
+
+  <!-- Border -->
+  <rect x="1" y="1" width="1198" height="318" rx="24" fill="none" stroke="#21262d" stroke-width="1.5"/>
+</svg>
