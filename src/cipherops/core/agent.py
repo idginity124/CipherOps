@@ -30,6 +30,10 @@ class AgentEvent:
 class CipherAgent:
     """The Autonomous ReAct Agent Core for CipherOps."""
 
+    # Keep at most this many non-system messages in the context window.
+    # Older messages are pruned to prevent Ollama context overflow.
+    MAX_CONTEXT_MESSAGES = 40
+
     def __init__(
         self,
         llm_client: Optional[OllamaClient] = None,
@@ -50,6 +54,26 @@ class CipherAgent:
             {"role": "system", "content": SYSTEM_PROMPT}
         ]
 
+    def _trim_context(self) -> None:
+        """Keep the system prompt and the most recent MAX_CONTEXT_MESSAGES messages.
+
+        This prevents unbounded context growth during long chat sessions that
+        would eventually exceed the model's context window and cause Ollama errors.
+        """
+        system_msgs = [m for m in self.messages if m["role"] == "system"]
+        non_system = [m for m in self.messages if m["role"] != "system"]
+
+        if len(non_system) > self.MAX_CONTEXT_MESSAGES:
+            trimmed = len(non_system) - self.MAX_CONTEXT_MESSAGES
+            non_system = non_system[trimmed:]
+            self._emit("context_trimmed", {"dropped_messages": trimmed})
+
+        self.messages = system_msgs + non_system
+
+    def reset(self) -> None:
+        """Clear conversation history, keeping the system prompt."""
+        self.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
     def _emit(self, event_type: str, data: Any = None) -> None:
         if self.event_callback:
             self.event_callback(AgentEvent(event_type, data))
@@ -69,6 +93,10 @@ class CipherAgent:
                 )
 
         self.messages.append({"role": "user", "content": sanitized_prompt})
+
+        # 2. Trim context to prevent context window overflow
+        self._trim_context()
+
         tools_spec = self.registry.to_ollama_tools()
 
         for iteration in range(self.max_iterations):

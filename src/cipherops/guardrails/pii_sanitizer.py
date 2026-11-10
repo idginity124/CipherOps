@@ -13,7 +13,11 @@ class PIIMatch:
 
 
 class PIISanitizer:
-    """Enterprise PII detection & masking engine for privacy & compliance (KVKK/GDPR)."""
+    """Enterprise PII detection & masking engine for privacy & compliance (KVKK/GDPR).
+
+    Uses re.sub() for single-pass replacements so that character positions stay
+    accurate even when multiple PII tokens appear in the same input string.
+    """
 
     # Pre-compiled regex patterns
     EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b")
@@ -49,47 +53,60 @@ class PIISanitizer:
         eleventh = sum(digits[:10]) % 10
         return eleventh == digits[10]
 
-    def sanitize(self, text: str) -> Tuple[str, List[PIIMatch]]:
-        """Scan text and replace sensitive tokens with [REDACTED_*] tokens."""
-        matches: List[PIIMatch] = []
-        sanitized = text
+    def _apply_pattern(
+        self,
+        text: str,
+        pattern: re.Pattern,
+        placeholder: str,
+        pii_type: str,
+        matches: List[PIIMatch],
+        *,
+        validator=None,
+    ) -> str:
+        """Replace all occurrences of *pattern* in *text* with *placeholder*.
 
-        # 1. API Keys and Tokens
+        Uses re.sub() so a single pass replaces all matches and positions are
+        computed on the **current** (already-partially-redacted) string to avoid
+        offset drift between successive replacements.
+        """
+        def replace_match(m: re.Match) -> str:
+            original = m.group()
+            if validator and not validator(original):
+                return original  # skip invalid (e.g. TCKN checksum fails)
+            matches.append(PIIMatch(pii_type, original, placeholder, m.start(), m.end()))
+            return placeholder
+
+        return pattern.sub(replace_match, text)
+
+    def sanitize(self, text: str) -> Tuple[str, List[PIIMatch]]:
+        """Scan text and replace sensitive tokens with [REDACTED_*] tokens.
+
+        Replacement order matters: longer / more-specific patterns run first so
+        that partial sub-matches don't interfere with subsequent patterns.
+        """
+        matches: List[PIIMatch] = []
+
+        # 1. API Keys and Tokens (before anything else — most specific)
         for pattern in self.API_KEY_PATTERNS:
-            for match in pattern.finditer(sanitized):
-                val = match.group()
-                sanitized = sanitized.replace(val, "[REDACTED_API_KEY]")
-                matches.append(PIIMatch("API_KEY", val, "[REDACTED_API_KEY]", match.start(), match.end()))
+            text = self._apply_pattern(text, pattern, "[REDACTED_API_KEY]", "API_KEY", matches)
 
         # 2. Credit Cards
-        for match in self.CREDIT_CARD_PATTERN.finditer(sanitized):
-            val = match.group()
-            sanitized = sanitized.replace(val, "[REDACTED_CARD]")
-            matches.append(PIIMatch("CREDIT_CARD", val, "[REDACTED_CARD]", match.start(), match.end()))
+        text = self._apply_pattern(text, self.CREDIT_CARD_PATTERN, "[REDACTED_CARD]", "CREDIT_CARD", matches)
 
         # 3. Turkish & International IBAN
-        for match in self.TR_IBAN_PATTERN.finditer(sanitized):
-            val = match.group()
-            sanitized = sanitized.replace(val, "[REDACTED_IBAN]")
-            matches.append(PIIMatch("IBAN", val, "[REDACTED_IBAN]", match.start(), match.end()))
+        text = self._apply_pattern(text, self.TR_IBAN_PATTERN, "[REDACTED_IBAN]", "IBAN", matches)
+        text = self._apply_pattern(text, self.INTL_IBAN_PATTERN, "[REDACTED_IBAN]", "IBAN", matches)
 
         # 4. TCKN (Verified Checksum)
-        for match in self.TCKN_PATTERN.finditer(sanitized):
-            val = match.group()
-            if self.is_valid_tckn(val):
-                sanitized = sanitized.replace(val, "[REDACTED_TCKN]")
-                matches.append(PIIMatch("TCKN", val, "[REDACTED_TCKN]", match.start(), match.end()))
+        text = self._apply_pattern(
+            text, self.TCKN_PATTERN, "[REDACTED_TCKN]", "TCKN", matches,
+            validator=self.is_valid_tckn,
+        )
 
         # 5. Phone numbers
-        for match in self.TR_PHONE_PATTERN.finditer(sanitized):
-            val = match.group()
-            sanitized = sanitized.replace(val, "[REDACTED_PHONE]")
-            matches.append(PIIMatch("PHONE", val, "[REDACTED_PHONE]", match.start(), match.end()))
+        text = self._apply_pattern(text, self.TR_PHONE_PATTERN, "[REDACTED_PHONE]", "PHONE", matches)
 
-        # 6. Emails
-        for match in self.EMAIL_PATTERN.finditer(sanitized):
-            val = match.group()
-            sanitized = sanitized.replace(val, "[REDACTED_EMAIL]")
-            matches.append(PIIMatch("EMAIL", val, "[REDACTED_EMAIL]", match.start(), match.end()))
+        # 6. Emails (last — broad pattern)
+        text = self._apply_pattern(text, self.EMAIL_PATTERN, "[REDACTED_EMAIL]", "EMAIL", matches)
 
-        return sanitized, matches
+        return text, matches

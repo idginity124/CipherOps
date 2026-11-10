@@ -66,8 +66,8 @@ def test_command_firewall_classifies_safe_and_caution():
     assert safe_res.risk_level == RiskLevel.SAFE
     assert safe_res.requires_approval is False
 
-    # Caution - package install, state-altering but not high risk
-    caution_res = validator.validate("python build.py")
+    # Caution - package install, state-altering but not a wrapper or high-risk binary
+    caution_res = validator.validate("pip install requests")
     assert caution_res.risk_level == RiskLevel.CAUTION
     assert caution_res.requires_approval is True
 
@@ -75,3 +75,7 @@ def test_command_firewall_classifies_safe_and_caution():
     high_res = validator.validate("rm -f temp.txt")
     assert high_res.risk_level == RiskLevel.HIGH
     assert high_res.requires_approval is True
+
+    # Execution wrappers are BLOCKED (new behaviour after security hardening)
+    wrapper_res = validator.validate("python build.py")
+    assert wrapper_res.risk_level == RiskLevel.BLOCKED

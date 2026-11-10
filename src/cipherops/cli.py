@@ -141,24 +141,41 @@ def chat(
         Panel(
             "[bold cyan]CipherOps Interactive Session[/]\n"
             f"[dim]Model: {model} | Guardrails: Active | Audit: Enabled[/]\n"
-            "Type 'exit' or 'quit' to terminate session.",
+            "Type 'exit' or 'quit' to terminate session. "
+            "Type 'clear' to reset conversation history.",
             border_style="cyan",
         )
     )
 
-    while True:
-        try:
-            user_input = Prompt.ask("\n[bold green]CipherOps >[/]")
-            if not user_input.strip():
-                continue
-            if user_input.lower() in ("exit", "quit", "q"):
-                console.print("[dim]Goodbye![/]")
+    async def _chat_loop() -> None:
+        turn = 0
+        while True:
+            try:
+                user_input = Prompt.ask(f"\n[bold green]You[/]")
+                stripped = user_input.strip()
+
+                if not stripped:
+                    continue
+
+                if stripped.lower() in ("exit", "quit", "q"):
+                    console.print("[dim]Session ended. Goodbye! 👋[/]")
+                    break
+
+                if stripped.lower() == "clear":
+                    agent.reset()
+                    console.print("[dim cyan]✓ Conversation history cleared.[/]")
+                    turn = 0
+                    continue
+
+                turn += 1
+                console.print(f"[dim]─── Turn {turn} ───[/]")
+                await agent.run(stripped)
+
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Session interrupted. Goodbye! 👋[/]")
                 break
 
-            asyncio.run(agent.run(user_input))
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Session terminated.[/]")
-            break
+    asyncio.run(_chat_loop())
 
 
 def main():

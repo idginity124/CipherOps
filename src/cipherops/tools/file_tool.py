@@ -3,6 +3,25 @@ from pathlib import Path
 from typing import Optional
 from .base import BaseTool, ToolResult
 
+# Paths that are never safe to write, regardless of agent intent
+_BLOCKED_WRITE_PREFIXES = (
+    "/etc/",
+    "/bin/",
+    "/sbin/",
+    "/usr/bin/",
+    "/usr/sbin/",
+    "/lib/",
+    "/lib64/",
+    "/boot/",
+    "/proc/",
+    "/sys/",
+    "/dev/",
+    "/root/",
+)
+
+# 10 MB max write size
+_MAX_WRITE_BYTES = 10 * 1024 * 1024
+
 
 class ReadFileTool(BaseTool):
     """Tool to read contents of local files safely."""
@@ -62,10 +81,19 @@ class ReadFileTool(BaseTool):
 
 
 class WriteFileTool(BaseTool):
-    """Tool to create or overwrite files safely with parent directory auto-creation."""
+    """Tool to create or overwrite files safely with parent directory auto-creation.
+
+    Security guardrails:
+    - Blocks writes to system-critical paths (/etc, /bin, /proc, /sys, /dev, /root …)
+    - Rejects payloads larger than 10 MB
+    - Resolves symlinks before the path check to prevent traversal attacks
+    """
 
     name = "write_file"
-    description = "Write content to a file. Creates parent directories if they don't exist."
+    description = (
+        "Write content to a file. Creates parent directories if they don't exist. "
+        "System-critical paths (/etc, /bin, /dev, /sys …) are blocked."
+    )
     parameters = {
         "type": "object",
         "properties": {
@@ -83,7 +111,31 @@ class WriteFileTool(BaseTool):
 
     def execute(self, file_path: str, content: str, **kwargs) -> ToolResult:
         try:
+            # Resolve the real path (follows symlinks) to prevent traversal
             path = Path(file_path).expanduser().resolve()
+            path_str = str(path)
+
+            # 1. Block writes to sensitive system paths
+            for blocked in _BLOCKED_WRITE_PREFIXES:
+                if path_str.startswith(blocked):
+                    return ToolResult(
+                        success=False,
+                        output="",
+                        error=f"SECURITY BLOCK: Writing to '{blocked}' is prohibited. Path: {path}",
+                        exit_code=126,
+                        metadata={"blocked_path": path_str},
+                    )
+
+            # 2. Block oversized payloads
+            encoded = content.encode("utf-8")
+            if len(encoded) > _MAX_WRITE_BYTES:
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error=f"Content size ({len(encoded):,} bytes) exceeds the 10 MB write limit.",
+                    exit_code=1,
+                )
+
             path.parent.mkdir(parents=True, exist_ok=True)
 
             with open(path, "w", encoding="utf-8") as f:
@@ -91,8 +143,8 @@ class WriteFileTool(BaseTool):
 
             return ToolResult(
                 success=True,
-                output=f"Successfully wrote {len(content)} characters to {path}",
-                metadata={"path": str(path), "bytes": len(content.encode('utf-8'))},
+                output=f"Successfully wrote {len(encoded):,} bytes to {path}",
+                metadata={"path": str(path), "bytes": len(encoded)},
             )
         except Exception as e:
             return ToolResult(success=False, output="", error=f"Failed to write file: {str(e)}", exit_code=1)

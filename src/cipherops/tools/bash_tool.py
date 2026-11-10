@@ -45,7 +45,20 @@ class BashTool(BaseTool):
             )
 
         # 2. Human-in-the-Loop Approval Check
-        if validation.requires_approval and self.approval_callback:
+        if validation.requires_approval:
+            if self.approval_callback is None:
+                # No callback configured: fail-safe — block execution rather than silently approve
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error=(
+                        f"Command requires human approval (risk: {validation.risk_level.value}) "
+                        "but no approval_callback is configured. "
+                        "Pass an approval_callback to BashTool or use create_default_registry()."
+                    ),
+                    exit_code=130,
+                    metadata={"risk_level": validation.risk_level.value, "approved": False},
+                )
             approved = self.approval_callback(command, validation.risk_level, validation.reason)
             if not approved:
                 return ToolResult(

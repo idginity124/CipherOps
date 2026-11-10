@@ -37,6 +37,22 @@ class CommandValidator:
         (r"\bchmod\s+-R\s+777\s+/\s*$", "Global recursive 777 permissions on root is prohibited"),
     ]
 
+    # Execution-wrapper commands that can bypass the firewall — always BLOCKED
+    # e.g. `bash -c "rm -rf /"`, `eval "..."`, `python3 -c "os.system('...')"
+    EXECUTION_WRAPPERS = {
+        "eval", "exec",
+        "bash", "sh", "zsh", "fish", "dash", "ksh", "tcsh", "csh",
+        "python", "python3", "python2",
+        "ruby", "perl", "node", "nodejs",
+        "php", "lua", "tclsh", "expect",
+        "xargs",           # can relay arbitrary commands
+        "env",             # `env rm -rf /` bypasses token check
+        "nohup",           # wraps another command
+        "strace", "ltrace",  # can exec subprocess
+        "nsenter", "unshare",  # namespace manipulation
+        "chroot",          # can exec inside chroot
+    }
+
     # Base command names that are safe (read-only / diagnostics)
     SAFE_COMMANDS = {
         "ls", "pwd", "whoami", "uname", "cat", "grep", "head", "tail", "wc",
@@ -77,7 +93,21 @@ class CommandValidator:
         # 2. Extract base commands from compound command
         base_tokens = self._extract_base_commands(cmd_clean)
 
-        # 3. Check HIGH risk base commands
+        # 3. Block execution wrappers that can relay arbitrary shell commands
+        for token in base_tokens:
+            if token in self.EXECUTION_WRAPPERS:
+                return ValidationResult(
+                    command=cmd_clean,
+                    risk_level=RiskLevel.BLOCKED,
+                    reason=(
+                        f"Security Policy Violation: Execution wrapper '{token}' can relay "
+                        "arbitrary shell commands and bypass the command firewall."
+                    ),
+                    requires_approval=False,
+                    blocked_pattern=token,
+                )
+
+        # 4. Check HIGH risk base commands
         for token in base_tokens:
             if token in self.HIGH_RISK_COMMANDS:
                 return ValidationResult(
@@ -87,7 +117,7 @@ class CommandValidator:
                     requires_approval=True,
                 )
 
-        # 4. Check if ALL base commands are SAFE
+        # 5. Check if ALL base commands are SAFE
         if all(token in self.SAFE_COMMANDS for token in base_tokens):
             return ValidationResult(
                 command=cmd_clean,
@@ -96,7 +126,7 @@ class CommandValidator:
                 requires_approval=False,
             )
 
-        # 5. Default to CAUTION for builds, package management, mutations
+        # 6. Default to CAUTION for builds, package management, mutations
         return ValidationResult(
             command=cmd_clean,
             risk_level=RiskLevel.CAUTION,
