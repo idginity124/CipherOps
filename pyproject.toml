@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cipherops"
+version = "0.1.0"
+description = "Enterprise-Grade Local Autonomous Agent with Privacy Guardrails & Human-in-the-Loop Execution"
+authors = [
+    { name = "Ekrem", email = "developer@cipherops.local" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.28.0",
+    "rich>=13.9.0",
+    "pydantic>=2.10.0",
+    "typer>=0.15.0",
+]
+
+[project.scripts]
+cipherops = "cipherops.cli:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
