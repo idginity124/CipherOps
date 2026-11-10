@@ -1,178 +1,152 @@
-# ⚡ CipherOps
+<p align="center"><a href="README.md">English</a> &nbsp; / &nbsp; <a href="README.tr.md">Türkçe</a></p>
 
-> **Enterprise-Grade Local Autonomous AI Agent with Privacy Guardrails, Human-in-the-Loop Execution, and Full Audit Logging**
+<p align="center"><img src="assets/readme-hero.en.svg" width="840" alt="CipherOps — local autonomous AI agent"></p>
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)](https://python.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-5%20passed-brightgreen)](#testing)
-[![On-Premise](https://img.shields.io/badge/Runs-100%25%20Local-blueviolet)](#setup)
-[![Model Agnostic](https://img.shields.io/badge/Model-Agnostic-orange)](#models)
+<p align="center">
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+&nbsp;
+<img src="https://img.shields.io/badge/Python-3.10%2B-blue?logo=python" alt="Python 3.10+">
+&nbsp;
+<img src="https://img.shields.io/badge/runs-100%25%20local-blueviolet" alt="Runs 100% local">
+&nbsp;
+<img src="https://img.shields.io/badge/tests-5%20passed-brightgreen" alt="Tests">
+</p>
 
-CipherOps is a **privacy-first, locally-executed autonomous AI agent** built for enterprise and regulated industry environments (banking, finance, healthcare). It runs entirely on your machine—no data ever leaves to external servers—while providing the sophisticated control mechanisms that production systems demand.
+<p align="center">An autonomous AI agent that runs entirely on your machine.<br>
+It reads files, executes terminal commands, and fixes code — without sending anything outside.</p>
+<p align="center"><sub>Built on top of <a href="https://ollama.com">Ollama</a> · Designed for privacy-first and regulated environments</sub></p>
 
----
+<p align="center"><img src="docs/screenshots/terminal.png" width="840" alt="CipherOps terminal session"></p>
 
-## 🎯 Key Features
+<h2 align="center">What it does</h2>
 
-| Feature | Details |
-|---|---|
-| **🔒 PII Sanitization** | Auto-redacts TCKN, IBAN, credit cards, API keys, emails & phone numbers before model inference (KVKK / GDPR compliant) |
-| **🛡️ Command Firewall** | 4-tier risk engine (`SAFE` → `CAUTION` → `HIGH` → `BLOCKED`). Catastrophic commands (`rm -rf /`, `mkfs`, fork bombs, raw disk writes) are **unconditionally blocked** |
-| **👤 Human-in-the-Loop** | Every destructive or state-altering command requires explicit operator confirmation in-terminal before execution |
-| **📋 Immutable Audit Trail** | Every tool call, security event, and PII redaction is written to a structured, append-only JSON Lines audit log |
-| **🧠 ReAct Agent Loop** | Multi-step Reasoning + Acting loop with up to 15 autonomous iterations; works with any OpenAI-compatible local LLM |
-| **🏠 100% On-Premise** | Communicates only with your local Ollama instance. Zero cloud dependency, zero telemetry |
-| **🔧 Extensible Tool System** | Clean `BaseTool` interface: add new capabilities in <30 lines of Python |
+<table align="center"><tr><th align="center">Act</th><th align="center">Guard</th><th align="center">Log</th></tr><tr><td align="center">Runs shell commands, reads and writes files, fixes code — step by step, autonomously.</td><td align="center">Blocks catastrophic commands unconditionally. Asks before anything destructive.</td><td align="center">Every action is written to a structured audit trail you can inspect any time.</td></tr></table>
 
----
+<p align="center">PII redaction before inference · 4-tier command firewall · Human-in-the-loop approval · Mermaid architecture diagram</p>
 
-## 🏗️ Architecture
+## How it works
+
+CipherOps follows a ReAct loop: it reasons about the goal, picks a tool, runs it, reads the output, and continues until the task is done or it needs your input.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   CLI / Interactive Chat                 │
-│               (Typer + Rich Terminal UI)                 │
-└──────────────────────────┬──────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────┐
-│          PRIVACY GUARDRAIL  (Runs BEFORE LLM)           │
-│   • PIISanitizer: TCKN · IBAN · Cards · API Keys · Email│
-└──────────────────────────┬──────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────┐
-│            CipherAgent — ReAct Core Loop                │
-│    Think → Plan → Tool Call → Observe → Repeat          │
-│    (OllamaClient — model-agnostic HTTP interface)       │
-└──────────────────────────┬──────────────────────────────┘
-                           │
-       ┌───────────────────┼───────────────────┐
-       │                   │                   │
-┌──────▼──────┐  ┌─────────▼────────┐  ┌──────▼──────────┐
-│  BashTool   │  │  FileTools       │  │  ToolRegistry   │
-│  (Secure    │  │  Read · Write    │  │  (Plug-in any   │
-│   Shell)    │  │  · List Dir      │  │   custom tool)  │
-└──────┬──────┘  └──────────────────┘  └─────────────────┘
-       │
-┌──────▼──────────────────────────────────────────────────┐
-│          COMMAND FIREWALL  (Runs BEFORE every exec)     │
-│   BLOCKED: rm -rf / · mkfs · dd to disk · fork bombs   │
-│   HIGH:    rm · kill · chmod → requires human approval  │
-│   CAUTION: pip install · build scripts → asks operator  │
-│   SAFE:    ls · git · cat · grep → auto-approved        │
-└──────┬──────────────────────────────────────────────────┘
-       │
-┌──────▼──────────────────────────────────────────────────┐
-│          AUDIT LOGGER  (append-only JSONL)              │
-│   Every event · tool call · block · PII hit · decision  │
-└─────────────────────────────────────────────────────────┘
+User prompt
+    │
+    ▼
+Privacy filter  ←── TCKN · IBAN · credit cards · API keys · email redacted here
+    │
+    ▼
+Agent core  ←── Think · plan · call tool · observe · repeat (up to 15 steps)
+    │
+    ├── execute_bash  ←── Command firewall runs before every execution
+    ├── read_file     ←── 5 MB safety limit, line-range support
+    ├── write_file    ←── Creates parent directories automatically
+    └── list_directory
+    │
+    ▼
+Audit logger  ←── append-only JSON Lines, one entry per event
 ```
 
----
+The local LLM (served by Ollama) is the only inference backend. No OpenAI key required. No data leaves the machine.
 
-## 🚀 Setup
+## Getting started
 
-### Prerequisites
-- Python 3.10+
-- [Ollama](https://ollama.com) running locally
+Python 3.10 or later is required.
 
-#### Install Ollama (CachyOS / Arch with AMD GPU)
+### Install Ollama and a model
+
 ```bash
-# ROCm-accelerated build for AMD GPUs (RX 6000 series+)
+# Arch / CachyOS with an AMD GPU (ROCm)
 sudo pacman -S ollama-rocm
 sudo systemctl enable --now ollama
-
-# Pull the recommended coding model (~9 GB)
 ollama pull qwen2.5-coder:14b
 ```
+
+For NVIDIA or CPU-only setups, replace `ollama-rocm` with `ollama-cuda` or `ollama`. Any model that supports tool calling in Ollama works.
 
 ### Install CipherOps
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/CipherOps.git
+git clone https://github.com/idginity124/CipherOps.git
 cd CipherOps
-
 python -m venv .venv
 source .venv/bin/activate
-
 pip install -e .
 ```
 
----
+### Check the setup
 
-## 💻 Usage
-
-### Diagnose System Readiness
 ```bash
 cipherops doctor
 ```
 
 ```
-╭─────────────────────────╮
-│ CipherOps System Doctor │
-╰─────────────────────────╯
-  Component             │ Status    │ Details
-  Python Runtime        │ OK        │ 3.14.9
-  Ollama Service        │ ACTIVE    │ Connected to http://localhost:11434
-  Local Models          │ FOUND     │ qwen2.5-coder:14b
-  Audit Trail Directory │ CONFIGURED│ /home/user/.cipherops/audit
+  Component              Status      Details
+  Python Runtime         OK          3.14.9
+  Ollama Service         ACTIVE      Connected to http://localhost:11434
+  Local Models           FOUND       qwen2.5-coder:14b
+  Audit Trail Directory  CONFIGURED  /home/user/.cipherops/audit
 ```
 
-### Single Task Execution
+## Usage
+
+### Run a single task
+
 ```bash
-cipherops run "Check if there are any broken Python imports in this project and fix them"
+cipherops run "List all TODO comments in this project and group them by file"
 ```
 
-### Interactive Session
+### Interactive session
+
 ```bash
 cipherops chat
 ```
 
 ```
-CipherOps > Sistemde hangi portlar açık?
+CipherOps > Check if there are any broken imports in src/
 🧠 Step 1: Analyzing state & planning...
-⚙️  Executing Tool: execute_bash args={'command': 'ss -tlnp'}
-   ↳ SUCCESS (Code 0): ...
+⚙️  read_file: src/cipherops/core/agent.py
+⚙️  execute_bash: python -c "import ast; ..."
+   ↳ SUCCESS — no broken imports found
 
-CipherOps > src/api.py dosyasındaki authentication fonksiyonunu incele
-⚙️  Executing Tool: read_file args={'file_path': 'src/api.py'}
-   ...
+CipherOps > Write a short summary of what each tool does and save it to TOOLS.md
+...
 ```
 
-### Human-in-the-Loop in Action
+### Human-in-the-loop
+
+When the agent wants to run something that modifies state, it stops and asks:
+
 ```
-⚙️  Executing Tool: execute_bash args={'command': 'rm -f old_logs/*.log'}
+⚙️  execute_bash: rm -f old_logs/*.log
 
-┌─────────────────────────────────────┐
-│  🛡️  Operator Confirmation Required  │
-│  SECURITY RISK ASSESSMENT: HIGH     │
-│  Reason: Command contains 'rm'      │
-│  Command: rm -f old_logs/*.log      │
-└─────────────────────────────────────┘
-Execute this command on host? [y/N]:
+  ┌──────────────────────────────────────┐
+  │  🛡️  Operator Confirmation Required   │
+  │  Risk level: HIGH                    │
+  │  Reason: Command contains 'rm'       │
+  │  Command: rm -f old_logs/*.log       │
+  └──────────────────────────────────────┘
+  Execute this command on host? [y/N]:
 ```
 
----
+Catastrophic patterns — `rm -rf /`, `mkfs`, `dd if=... of=/dev/sda`, fork bombs — are blocked unconditionally and never reach this prompt.
 
-## 🔒 Privacy & Compliance
+## Privacy and compliance
 
-CipherOps is designed from the ground up for **KVKK (Turkey)** and **GDPR (EU)** compliant environments:
+The privacy filter runs before the user's prompt is sent to the LLM. If it finds sensitive tokens, it replaces them and writes a security event to the audit log.
 
-### PII Detection Coverage
-
-| Type | Example | Redacted As |
+| Type | Example detected | Replaced with |
 |---|---|---|
 | Turkish Republic ID (TCKN) | `10000000146` | `[REDACTED_TCKN]` |
-| IBAN (TR + International) | `TR33 0006 1005 1112 3456 7890 12` | `[REDACTED_IBAN]` |
-| Credit Card Numbers | `4111 1111 1111 1111` | `[REDACTED_CARD]` |
-| API Keys & Tokens | `sk-proj-...`, `ghp_...`, `AKIA...` | `[REDACTED_API_KEY]` |
-| Email Addresses | `user@example.com` | `[REDACTED_EMAIL]` |
-| Turkish Phone Numbers | `0532 123 45 67` | `[REDACTED_PHONE]` |
+| IBAN | `TR33 0006 1005 1112 3456 7890 12` | `[REDACTED_IBAN]` |
+| Credit card | `4111 1111 1111 1111` | `[REDACTED_CARD]` |
+| API key / token | `sk-proj-...`, `ghp_...`, `AKIA...` | `[REDACTED_API_KEY]` |
+| Email | `user@example.com` | `[REDACTED_EMAIL]` |
+| Turkish phone | `0532 123 45 67` | `[REDACTED_PHONE]` |
 
-TCKN validation uses the official 11-digit checksum algorithm to minimize false positives.
+TCKN uses the official 11-digit checksum algorithm to avoid false positives.
 
-### Audit Log Format
+Every agent action produces a structured log entry:
 
-Every agent action produces a structured, immutable log entry:
 ```json
 {
   "timestamp": "2025-11-10T18:30:01.123Z",
@@ -180,15 +154,38 @@ Every agent action produces a structured, immutable log entry:
   "level": "INFO",
   "tool_name": "execute_bash",
   "command_or_input": "{\"command\": \"ls -la\"}",
-  "output_summary": "total 32\\ndrwxr-xr-x ...",
+  "output_summary": "total 32 drwxr-xr-x ...",
   "exit_code": 0,
   "human_approved": true
 }
 ```
 
----
+Logs are written to `~/.cipherops/audit/` as append-only JSON Lines files, one per day.
 
-## 🧪 Testing
+## Project layout
+
+```
+CipherOps/
+├── src/cipherops/
+│   ├── core/
+│   │   ├── agent.py           ReAct loop, iteration control, event callbacks
+│   │   └── llm.py             Ollama HTTP client, tool-call parsing
+│   ├── guardrails/
+│   │   ├── pii_sanitizer.py   Regex + checksum detection, redaction
+│   │   └── command_validator.py  4-tier firewall, blocked pattern list
+│   ├── tools/
+│   │   ├── base.py            BaseTool interface, ToolResult
+│   │   ├── bash_tool.py       Shell executor with approval callback
+│   │   ├── file_tool.py       Read, write, list directory
+│   │   └── registry.py        Tool registry and factory
+│   ├── audit/
+│   │   └── logger.py          Thread-safe append-only JSON Lines logger
+│   └── cli.py                 Typer CLI — doctor, run, chat
+└── tests/
+    └── test_guardrails.py     5 unit tests for PII and command firewall
+```
+
+## Tests
 
 ```bash
 source .venv/bin/activate
@@ -196,27 +193,23 @@ pytest tests/ -v
 ```
 
 ```
-tests/test_guardrails.py::test_tckn_masking                              PASSED
-tests/test_guardrails.py::test_iban_masking                              PASSED
-tests/test_guardrails.py::test_api_key_masking                           PASSED
-tests/test_guardrails.py::test_command_firewall_blocks_catastrophic      PASSED
+tests/test_guardrails.py::test_tckn_masking                                PASSED
+tests/test_guardrails.py::test_iban_masking                                PASSED
+tests/test_guardrails.py::test_api_key_masking                             PASSED
+tests/test_guardrails.py::test_command_firewall_blocks_catastrophic        PASSED
 tests/test_guardrails.py::test_command_firewall_classifies_safe_and_caution PASSED
 
 5 passed in 0.01s
 ```
 
----
-
-## 🔧 Extending CipherOps
-
-Add a custom tool in under 30 lines:
+## Adding a custom tool
 
 ```python
 from cipherops.tools.base import BaseTool, ToolResult
 
 class WebSearchTool(BaseTool):
     name = "web_search"
-    description = "Search the web and return a summary of results"
+    description = "Search the web and return a summary"
     parameters = {
         "type": "object",
         "properties": {
@@ -226,58 +219,28 @@ class WebSearchTool(BaseTool):
     }
 
     def execute(self, query: str, **kwargs) -> ToolResult:
-        # Your implementation here
+        # your implementation
         return ToolResult(success=True, output=f"Results for: {query}")
 ```
 
-Register it:
-```python
-from cipherops.tools.registry import create_default_registry
+Register before starting a session:
 
+```python
 registry = create_default_registry()
 registry.register(WebSearchTool())
 ```
 
----
+## Planned
 
-## 📁 Project Structure
+- Vector memory across sessions (ChromaDB)
+- Web search and browser automation tool
+- Multi-agent split: planner + executor
+- FastAPI server mode for headless / CI use
+- Docker sandboxed execution
 
-```
-CipherOps/
-├── src/cipherops/
-│   ├── core/
-│   │   ├── agent.py          # ReAct autonomous agent loop
-│   │   └── llm.py            # Ollama / OpenAI-compatible client
-│   ├── guardrails/
-│   │   ├── pii_sanitizer.py  # TCKN, IBAN, card, key redaction
-│   │   └── command_validator.py  # 4-tier command firewall
-│   ├── tools/
-│   │   ├── base.py           # BaseTool abstract interface
-│   │   ├── bash_tool.py      # Secure shell executor
-│   │   ├── file_tool.py      # Read / Write / List tools
-│   │   └── registry.py       # Tool registry & factory
-│   ├── audit/
-│   │   └── logger.py         # Immutable JSON Lines audit logger
-│   └── cli.py                # Typer CLI (doctor / run / chat)
-├── tests/
-│   └── test_guardrails.py    # Unit tests for PII & command firewall
-├── pyproject.toml
-├── requirements.txt
-└── README.md
-```
+These are plans, not features in this release.
 
----
-
-## 🗺️ Roadmap
-
-- [ ] **v0.2** — Vector memory (ChromaDB) for long-term context across sessions
-- [ ] **v0.3** — Web search & browser automation tool
-- [ ] **v0.4** — Multi-agent orchestration (planner + executor split)
-- [ ] **v0.5** — REST API server mode (FastAPI) for headless / CI integrations
-- [ ] **v1.0** — Docker-based sandboxed execution environment
-
----
-
-## 📄 License
-
-MIT © 2025 — Built with ❤️ for privacy-first AI engineering
+<br>
+<p align="center"><img src="assets/training-arc.en.svg" width="840" alt="The Training Arc — Ekrem Bulgan"></p>
+<p align="center"><a href="https://www.ekrembulgan.com">Ekrem Bulgan</a> &nbsp; / &nbsp; <a href="https://linkedin.com/in/ekrembulgan">LinkedIn</a></p>
+<p align="center"><sub>MIT licensed · <a href="LICENSE">License</a></sub></p>
