@@ -1,20 +1,17 @@
 import asyncio
 import sys
 from pathlib import Path
-from typing import Optional
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
-from rich.syntax import Syntax
 from rich.prompt import Confirm, Prompt
+from rich.table import Table
 
-from .core.agent import CipherAgent, AgentEvent
+from .core.agent import AgentEvent, CipherAgent
 from .core.llm import OllamaClient
 from .guardrails.command_validator import RiskLevel
-from .guardrails.pii_sanitizer import PIISanitizer
 from .tools.registry import create_default_registry
-from .audit.logger import AuditLogger
 
 app = typer.Typer(
     name="cipherops",
@@ -42,7 +39,9 @@ def human_approval_callback(command: str, risk_level: RiskLevel, reason: str) ->
 def handle_agent_event(event: AgentEvent) -> None:
     """Render agent runtime events with rich visual elements."""
     if event.event_type == "thinking":
-        console.print(f"[dim cyan]🧠 Step {event.data['iteration']}: Analyzing state & planning...[/]")
+        console.print(
+            f"[dim cyan]🧠 Step {event.data['iteration']}: Analyzing state & planning...[/]"
+        )
 
     elif event.event_type == "pii_alert":
         console.print(
@@ -71,7 +70,7 @@ def handle_agent_event(event: AgentEvent) -> None:
 
 @app.command()
 def doctor(
-    ollama_url: str = typer.Option("http://localhost:11434", help="Ollama API base URL")
+    ollama_url: str = typer.Option("http://localhost:11434", help="Ollama API base URL"),
 ):
     """Diagnose local system environment, GPU readiness, and Ollama status."""
     console.print(Panel.fit("[bold cyan]CipherOps System Doctor[/]", border_style="cyan"))
@@ -92,9 +91,17 @@ def doctor(
         table.add_row("Ollama Service", "[green]ACTIVE[/]", f"Connected to {ollama_url}")
         models = asyncio.run(client.list_local_models())
         models_str = ", ".join(models) if models else "No models downloaded yet"
-        table.add_row("Local Models", "[green]FOUND[/]" if models else "[yellow]NONE[/]", models_str)
+        table.add_row(
+            "Local Models",
+            "[green]FOUND[/]" if models else "[yellow]NONE[/]",
+            models_str,
+        )
     else:
-        table.add_row("Ollama Service", "[red]INACTIVE[/]", f"Cannot connect to {ollama_url}. Is 'systemctl start ollama' running?")
+        table.add_row(
+            "Ollama Service",
+            "[red]INACTIVE[/]",
+            f"Cannot connect to {ollama_url}. Is 'systemctl start ollama' running?",
+        )
 
     # 3. Audit Directory
     audit_path = Path.home() / ".cipherops" / "audit"
@@ -119,7 +126,7 @@ def run(
     )
 
     console.print(f"[bold green]Starting CipherOps task:[/] {prompt}\n")
-    result = asyncio.run(agent.run(prompt))
+    asyncio.run(agent.run(prompt))
     console.print("\n[bold green]🏁 Task Complete.[/]")
 
 
@@ -151,7 +158,7 @@ def chat(
         turn = 0
         while True:
             try:
-                user_input = Prompt.ask(f"\n[bold green]You[/]")
+                user_input = Prompt.ask("\n[bold green]You[/]")
                 stripped = user_input.strip()
 
                 if not stripped:

@@ -1,10 +1,10 @@
 import json
-import os
 import threading
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -18,28 +18,32 @@ class AuditLevel(str, Enum):
 
 class AuditEvent(BaseModel):
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    event_type: str  # e.g., "tool_execution", "pii_detected", "command_blocked", "user_confirmation"
+    event_type: (
+        str  # e.g., "tool_execution", "pii_detected", "command_blocked", "user_confirmation"
+    )
     level: AuditLevel = AuditLevel.INFO
-    tool_name: Optional[str] = None
-    command_or_input: Optional[str] = None
-    parameters: Optional[Dict[str, Any]] = None
-    output_summary: Optional[str] = None
-    exit_code: Optional[int] = None
-    human_approved: Optional[bool] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    tool_name: str | None = None
+    command_or_input: str | None = None
+    parameters: dict[str, Any] | None = None
+    output_summary: str | None = None
+    exit_code: int | None = None
+    human_approved: bool | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class AuditLogger:
     """Enterprise-grade audit logger writing structured immutable JSON Lines logs."""
 
-    def __init__(self, log_dir: Optional[Path] = None):
+    def __init__(self, log_dir: Path | None = None):
         if log_dir is None:
             self.log_dir = Path.home() / ".cipherops" / "audit"
         else:
             self.log_dir = Path(log_dir)
 
         self.log_dir.mkdir(parents=True, exist_ok=True)
-        self.log_file = self.log_dir / f"audit_{datetime.now(timezone.utc).strftime('%Y%m%d')}.jsonl"
+        self.log_file = (
+            self.log_dir / f"audit_{datetime.now(timezone.utc).strftime('%Y%m%d')}.jsonl"
+        )
         self._lock = threading.Lock()
 
     def log(self, event: AuditEvent) -> None:
@@ -47,15 +51,14 @@ class AuditLogger:
         data = event.model_dump(mode="json")
         line = json.dumps(data, ensure_ascii=False) + "\n"
 
-        with self._lock:
-            with open(self.log_file, "a", encoding="utf-8") as f:
-                f.write(line)
+        with self._lock, open(self.log_file, "a", encoding="utf-8") as f:
+            f.write(line)
 
     def log_tool_run(
         self,
         tool_name: str,
         command_or_input: str,
-        parameters: Optional[Dict[str, Any]],
+        parameters: dict[str, Any] | None,
         output: str,
         exit_code: int,
         human_approved: bool,

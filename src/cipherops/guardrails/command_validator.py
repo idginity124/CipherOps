@@ -1,14 +1,13 @@
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
 
 
 class RiskLevel(str, Enum):
-    SAFE = "SAFE"            # Read-only or harmless commands
-    CAUTION = "CAUTION"      # Modifies local files, builds, installs packages
-    HIGH = "HIGH"            # Destructive file operations, killing processes
-    BLOCKED = "BLOCKED"      # Forbidden commands that can destroy OS / hardware
+    SAFE = "SAFE"  # Read-only or harmless commands
+    CAUTION = "CAUTION"  # Modifies local files, builds, installs packages
+    HIGH = "HIGH"  # Destructive file operations, killing processes
+    BLOCKED = "BLOCKED"  # Forbidden commands that can destroy OS / hardware
 
 
 @dataclass
@@ -17,7 +16,7 @@ class ValidationResult:
     risk_level: RiskLevel
     reason: str
     requires_approval: bool
-    blocked_pattern: Optional[str] = None
+    blocked_pattern: str | None = None
 
 
 class CommandValidator:
@@ -25,47 +24,120 @@ class CommandValidator:
 
     # Catastrophic patterns strictly blocked unconditionally
     BLOCKED_PATTERNS = [
-        (r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*f\s+/\s*$", "Root directory deletion (rm -rf /) is prohibited"),
-        (r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*f\s+/\*", "Root directory wildcard deletion is prohibited"),
+        (
+            r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*f\s+/\s*$",
+            "Root directory deletion (rm -rf /) is prohibited",
+        ),
+        (
+            r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*f\s+/\*",
+            "Root directory wildcard deletion is prohibited",
+        ),
         (r"\bmkfs\b", "Disk formatting (mkfs) is prohibited"),
-        (r"\bdd\s+if=.*of=/dev/(?:sd[a-z]|nvme[0-9]|hd[a-z])", "Direct raw disk overwrites via dd are prohibited"),
+        (
+            r"\bdd\s+if=.*of=/dev/(?:sd[a-z]|nvme[0-9]|hd[a-z])",
+            "Direct raw disk overwrites via dd are prohibited",
+        ),
         (r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:", "Fork bomb attempt detected"),
         (r">/dev/sd[a-z]", "Raw disk redirect write is prohibited"),
         (r">\s*/dev/nvme", "Raw disk redirect write is prohibited"),
         (r"\bshutdown\b", "System shutdown is prohibited in autonomous agent mode"),
         (r"\breboot\b", "System reboot is prohibited in autonomous agent mode"),
-        (r"\bchmod\s+-R\s+777\s+/\s*$", "Global recursive 777 permissions on root is prohibited"),
+        (
+            r"\bchmod\s+-R\s+777\s+/\s*$",
+            "Global recursive 777 permissions on root is prohibited",
+        ),
     ]
 
     # Execution-wrapper commands that can bypass the firewall — always BLOCKED
     # e.g. `bash -c "rm -rf /"`, `eval "..."`, `python3 -c "os.system('...')"
     EXECUTION_WRAPPERS = {
-        "eval", "exec",
-        "bash", "sh", "zsh", "fish", "dash", "ksh", "tcsh", "csh",
-        "python", "python3", "python2",
-        "ruby", "perl", "node", "nodejs",
-        "php", "lua", "tclsh", "expect",
-        "xargs",           # can relay arbitrary commands
-        "env",             # `env rm -rf /` bypasses token check
-        "nohup",           # wraps another command
-        "strace", "ltrace",  # can exec subprocess
-        "nsenter", "unshare",  # namespace manipulation
-        "chroot",          # can exec inside chroot
+        "eval",
+        "exec",
+        "bash",
+        "sh",
+        "zsh",
+        "fish",
+        "dash",
+        "ksh",
+        "tcsh",
+        "csh",
+        "python",
+        "python3",
+        "python2",
+        "ruby",
+        "perl",
+        "node",
+        "nodejs",
+        "php",
+        "lua",
+        "tclsh",
+        "expect",
+        "xargs",  # can relay arbitrary commands
+        "env",  # `env rm -rf /` bypasses token check
+        "nohup",  # wraps another command
+        "strace",
+        "ltrace",  # can exec subprocess
+        "nsenter",
+        "unshare",  # namespace manipulation
+        "chroot",  # can exec inside chroot
     }
 
     # Base command names that are safe (read-only / diagnostics)
     SAFE_COMMANDS = {
-        "ls", "pwd", "whoami", "uname", "cat", "grep", "head", "tail", "wc",
-        "date", "uptime", "free", "df", "ps", "top", "which", "echo", "git",
-        "find", "stat", "file", "less", "more", "sort", "uniq", "cut", "tr",
-        "du", "id", "env", "printenv", "lscpu", "lsblk", "lspci", "lsusb",
-        "dmesg", "journalctl", "systemctl"
+        "ls",
+        "pwd",
+        "whoami",
+        "uname",
+        "cat",
+        "grep",
+        "head",
+        "tail",
+        "wc",
+        "date",
+        "uptime",
+        "free",
+        "df",
+        "ps",
+        "top",
+        "which",
+        "echo",
+        "git",
+        "find",
+        "stat",
+        "file",
+        "less",
+        "more",
+        "sort",
+        "uniq",
+        "cut",
+        "tr",
+        "du",
+        "id",
+        "env",
+        "printenv",
+        "lscpu",
+        "lsblk",
+        "lspci",
+        "lsusb",
+        "dmesg",
+        "journalctl",
+        "systemctl",
     }
 
     # Base command names that are HIGH risk (need approval, not blocked)
     HIGH_RISK_COMMANDS = {
-        "rm", "rmdir", "kill", "pkill", "killall", "chmod", "chown",
-        "sudo", "userdel", "groupdel", "iptables", "ufw"
+        "rm",
+        "rmdir",
+        "kill",
+        "pkill",
+        "killall",
+        "chmod",
+        "chown",
+        "sudo",
+        "userdel",
+        "groupdel",
+        "iptables",
+        "ufw",
     }
 
     def validate(self, command_str: str) -> ValidationResult:
@@ -134,7 +206,7 @@ class CommandValidator:
             requires_approval=True,
         )
 
-    def _extract_base_commands(self, cmd: str) -> List[str]:
+    def _extract_base_commands(self, cmd: str) -> list[str]:
         """Extract ONLY the binary names (base commands) from a compound command string."""
         tokens = []
         # Split by command separators (;, &&, ||, |)

@@ -1,6 +1,5 @@
-import pytest
-from cipherops.guardrails.pii_sanitizer import PIISanitizer
 from cipherops.guardrails.command_validator import CommandValidator, RiskLevel
+from cipherops.guardrails.pii_sanitizer import PIISanitizer
 
 
 def test_tckn_masking():

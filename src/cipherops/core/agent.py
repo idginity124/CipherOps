@@ -1,12 +1,12 @@
-import asyncio
 import json
-from typing import Any, Callable, Dict, List, Optional
-from .llm import OllamaClient, ToolCall
-from ..tools.registry import ToolRegistry, create_default_registry
-from ..tools.base import ToolResult
-from ..guardrails.pii_sanitizer import PIISanitizer
-from ..audit.logger import AuditLogger, AuditLevel
+from collections.abc import Callable
+from typing import Any
 
+from ..audit.logger import AuditLevel, AuditLogger
+from ..guardrails.pii_sanitizer import PIISanitizer
+from ..tools.base import ToolResult
+from ..tools.registry import ToolRegistry, create_default_registry
+from .llm import OllamaClient
 
 SYSTEM_PROMPT = """You are CipherOps, an elite autonomous AI Operations and Software Engineer agent.
 You run locally on the host machine to diagnose issues, maintain systems, inspect code, and solve technical problems.
@@ -23,7 +23,9 @@ Core Operational Rules:
 
 class AgentEvent:
     def __init__(self, event_type: str, data: Any = None):
-        self.event_type = event_type  # "thinking", "tool_call", "tool_result", "message", "pii_alert", "error"
+        self.event_type = (
+            event_type  # "thinking", "tool_call", "tool_result", "message", "pii_alert", "error"
+        )
         self.data = data
 
 
@@ -36,12 +38,12 @@ class CipherAgent:
 
     def __init__(
         self,
-        llm_client: Optional[OllamaClient] = None,
-        registry: Optional[ToolRegistry] = None,
-        sanitizer: Optional[PIISanitizer] = None,
-        audit_logger: Optional[AuditLogger] = None,
+        llm_client: OllamaClient | None = None,
+        registry: ToolRegistry | None = None,
+        sanitizer: PIISanitizer | None = None,
+        audit_logger: AuditLogger | None = None,
         max_iterations: int = 15,
-        event_callback: Optional[Callable[[AgentEvent], None]] = None,
+        event_callback: Callable[[AgentEvent], None] | None = None,
     ):
         self.llm = llm_client or OllamaClient()
         self.sanitizer = sanitizer or PIISanitizer()
@@ -50,9 +52,7 @@ class CipherAgent:
         self.max_iterations = max_iterations
         self.event_callback = event_callback
 
-        self.messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": SYSTEM_PROMPT}
-        ]
+        self.messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
 
     def _trim_context(self) -> None:
         """Keep the system prompt and the most recent MAX_CONTEXT_MESSAGES messages.
@@ -83,7 +83,10 @@ class CipherAgent:
         # 1. PII Redaction Guardrail
         sanitized_prompt, pii_matches = self.sanitizer.sanitize(user_prompt)
         if pii_matches:
-            self._emit("pii_alert", {"count": len(pii_matches), "types": [m.pii_type for m in pii_matches]})
+            self._emit(
+                "pii_alert",
+                {"count": len(pii_matches), "types": [m.pii_type for m in pii_matches]},
+            )
             for match in pii_matches:
                 self.audit.log_security_violation(
                     event_type="pii_redacted",
@@ -106,12 +109,15 @@ class CipherAgent:
             try:
                 response = await self.llm.chat(self.messages, tools=tools_spec)
             except Exception as e:
-                err_msg = f"LLM Inference failed: {str(e)}"
+                err_msg = f"LLM Inference failed: {e!s}"
                 self._emit("error", err_msg)
                 return err_msg
 
             # Append assistant response to messages
-            assistant_msg: Dict[str, Any] = {"role": "assistant", "content": response.content}
+            assistant_msg: dict[str, Any] = {
+                "role": "assistant",
+                "content": response.content,
+            }
             if response.tool_calls:
                 assistant_msg["tool_calls"] = [
                     {
@@ -145,15 +151,23 @@ class CipherAgent:
                     try:
                         result = tool.execute(**tc.arguments)
                     except Exception as e:
-                        result = ToolResult(success=False, output="", error=f"Execution exception: {str(e)}", exit_code=1)
+                        result = ToolResult(
+                            success=False,
+                            output="",
+                            error=f"Execution exception: {e!s}",
+                            exit_code=1,
+                        )
 
                 output_str = result.to_string()
-                self._emit("tool_result", {
-                    "name": tc.name,
-                    "success": result.success,
-                    "output": output_str,
-                    "exit_code": result.exit_code,
-                })
+                self._emit(
+                    "tool_result",
+                    {
+                        "name": tc.name,
+                        "success": result.success,
+                        "output": output_str,
+                        "exit_code": result.exit_code,
+                    },
+                )
 
                 # Log to audit trail
                 self.audit.log_tool_run(
@@ -167,9 +181,11 @@ class CipherAgent:
                 )
 
                 # Feed tool result back into context
-                self.messages.append({
-                    "role": "tool",
-                    "content": output_str,
-                })
+                self.messages.append(
+                    {
+                        "role": "tool",
+                        "content": output_str,
+                    }
+                )
 
         return "Iteration limit reached. Please review current progress."

@@ -1,10 +1,8 @@
 """Tests for AuditLogger."""
+
 import json
-from pathlib import Path
 
-import pytest
-
-from cipherops.audit.logger import AuditLogger, AuditLevel, AuditEvent
+from cipherops.audit.logger import AuditEvent, AuditLevel, AuditLogger
 
 
 class TestAuditLogger:
@@ -17,7 +15,9 @@ class TestAuditLogger:
 
     def test_log_writes_valid_json(self, tmp_path):
         logger = AuditLogger(log_dir=tmp_path)
-        event = AuditEvent(event_type="tool_execution", level=AuditLevel.INFO, tool_name="execute_bash")
+        event = AuditEvent(
+            event_type="tool_execution", level=AuditLevel.INFO, tool_name="execute_bash"
+        )
         logger.log(event)
         log_file = list(tmp_path.glob("audit_*.jsonl"))[0]
         lines = log_file.read_text().strip().splitlines()
@@ -84,6 +84,7 @@ class TestAuditLogger:
     def test_thread_safety(self, tmp_path):
         """Multiple threads writing simultaneously must not corrupt the log."""
         import threading
+
         logger = AuditLogger(log_dir=tmp_path)
         errors = []
 

@@ -1,6 +1,5 @@
-import os
 from pathlib import Path
-from typing import Optional
+
 from .base import BaseTool, ToolResult
 
 # Paths that are never safe to write, regardless of agent intent
@@ -47,18 +46,39 @@ class ReadFileTool(BaseTool):
         "required": ["file_path"],
     }
 
-    def execute(self, file_path: str, start_line: Optional[int] = None, end_line: Optional[int] = None, **kwargs) -> ToolResult:
+    def execute(
+        self,
+        file_path: str,
+        start_line: int | None = None,
+        end_line: int | None = None,
+        **kwargs,
+    ) -> ToolResult:
         try:
             path = Path(file_path).expanduser().resolve()
             if not path.exists():
-                return ToolResult(success=False, output="", error=f"File not found: {file_path}", exit_code=1)
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error=f"File not found: {file_path}",
+                    exit_code=1,
+                )
 
             if path.is_dir():
-                return ToolResult(success=False, output="", error=f"Target path is a directory, not a file: {file_path}", exit_code=1)
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error=f"Target path is a directory, not a file: {file_path}",
+                    exit_code=1,
+                )
 
             # File size limit (e.g. 5 MB) to avoid memory overload
             if path.stat().st_size > 5 * 1024 * 1024:
-                return ToolResult(success=False, output="", error="File exceeds 5MB safety limit", exit_code=1)
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error="File exceeds 5MB safety limit",
+                    exit_code=1,
+                )
 
             with open(path, "r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
@@ -68,16 +88,26 @@ class ReadFileTool(BaseTool):
             e_idx = min(total_lines, end_line) if end_line else total_lines
 
             selected_lines = lines[s_idx:e_idx]
-            numbered = [f"{i + 1:4d} | {line}" for i, line in enumerate(selected_lines, start=s_idx)]
+            numbered = [
+                f"{i + 1:4d} | {line}" for i, line in enumerate(selected_lines, start=s_idx)
+            ]
             content = "".join(numbered)
 
             return ToolResult(
                 success=True,
                 output=content if content else "(Empty file)",
-                metadata={"total_lines": total_lines, "returned_lines": len(selected_lines)},
+                metadata={
+                    "total_lines": total_lines,
+                    "returned_lines": len(selected_lines),
+                },
             )
         except Exception as e:
-            return ToolResult(success=False, output="", error=f"Failed to read file: {str(e)}", exit_code=1)
+            return ToolResult(
+                success=False,
+                output="",
+                error=f"Failed to read file: {e!s}",
+                exit_code=1,
+            )
 
 
 class WriteFileTool(BaseTool):
@@ -147,7 +177,12 @@ class WriteFileTool(BaseTool):
                 metadata={"path": str(path), "bytes": len(encoded)},
             )
         except Exception as e:
-            return ToolResult(success=False, output="", error=f"Failed to write file: {str(e)}", exit_code=1)
+            return ToolResult(
+                success=False,
+                output="",
+                error=f"Failed to write file: {e!s}",
+                exit_code=1,
+            )
 
 
 class ListDirectoryTool(BaseTool):
@@ -169,10 +204,20 @@ class ListDirectoryTool(BaseTool):
         try:
             path = Path(directory_path).expanduser().resolve()
             if not path.exists():
-                return ToolResult(success=False, output="", error=f"Directory not found: {directory_path}", exit_code=1)
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error=f"Directory not found: {directory_path}",
+                    exit_code=1,
+                )
 
             if not path.is_dir():
-                return ToolResult(success=False, output="", error=f"Path is not a directory: {directory_path}", exit_code=1)
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error=f"Path is not a directory: {directory_path}",
+                    exit_code=1,
+                )
 
             entries = []
             for item in sorted(path.iterdir()):
@@ -186,4 +231,9 @@ class ListDirectoryTool(BaseTool):
                 metadata={"count": len(entries)},
             )
         except Exception as e:
-            return ToolResult(success=False, output="", error=f"Failed to list directory: {str(e)}", exit_code=1)
+            return ToolResult(
+                success=False,
+                output="",
+                error=f"Failed to list directory: {e!s}",
+                exit_code=1,
+            )

@@ -1,20 +1,21 @@
 import json
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import httpx
 
 
 @dataclass
 class ToolCall:
     name: str
-    arguments: Dict[str, Any]
+    arguments: dict[str, Any]
 
 
 @dataclass
 class LLMResponse:
     content: str
-    tool_calls: List[ToolCall] = field(default_factory=list)
-    raw_response: Dict[str, Any] = field(default_factory=dict)
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    raw_response: dict[str, Any] = field(default_factory=dict)
 
 
 class OllamaClient:
@@ -39,7 +40,7 @@ class OllamaClient:
         except Exception:
             return False
 
-    async def list_local_models(self) -> List[str]:
+    async def list_local_models(self) -> list[str]:
         """Return list of downloaded model tags in Ollama."""
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
@@ -53,12 +54,12 @@ class OllamaClient:
 
     async def chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.2,
     ) -> LLMResponse:
         """Send chat messages and tool specifications to Ollama."""
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "stream": False,
@@ -79,7 +80,7 @@ class OllamaClient:
             message = data.get("message", {})
             content = message.get("content", "") or ""
 
-            tool_calls: List[ToolCall] = []
+            tool_calls: list[ToolCall] = []
             if "tool_calls" in message:
                 for tc in message["tool_calls"]:
                     fn = tc.get("function", {})

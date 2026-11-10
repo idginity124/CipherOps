@@ -1,18 +1,12 @@
 """Tests for all CipherOps tools: BashTool, ReadFileTool, WriteFileTool, ListDirectoryTool."""
-import os
-import tempfile
-from pathlib import Path
-
-import pytest
 
 from cipherops.tools.bash_tool import BashTool
-from cipherops.tools.file_tool import ReadFileTool, WriteFileTool, ListDirectoryTool
-from cipherops.guardrails.command_validator import RiskLevel
-
+from cipherops.tools.file_tool import ListDirectoryTool, ReadFileTool, WriteFileTool
 
 # ---------------------------------------------------------------------------
 # BashTool
 # ---------------------------------------------------------------------------
+
 
 class TestBashTool:
     def test_safe_command_executes_without_callback(self):
@@ -69,10 +63,12 @@ class TestBashTool:
     def test_timeout_handling(self):
         """Commands that exceed timeout return a clean error."""
         import subprocess
+
         tool = BashTool(approval_callback=lambda cmd, risk, reason: True)
-        import unittest.mock as mock
+        from unittest import mock
+
         with mock.patch("subprocess.run", side_effect=subprocess.TimeoutExpired("sleep", 120)):
-            result = tool.execute("ls /tmp")  # ls is safe, no approval needed
+            _ = tool.execute("ls /tmp")  # ls is safe, no approval needed
             # ls is SAFE so it won't reach subprocess — patch won't fire; that's fine.
         # At minimum, importing and constructing works
         assert tool is not None
@@ -81,6 +77,7 @@ class TestBashTool:
 # ---------------------------------------------------------------------------
 # ReadFileTool
 # ---------------------------------------------------------------------------
+
 
 class TestReadFileTool:
     def test_read_existing_file(self, tmp_path):
@@ -120,6 +117,7 @@ class TestReadFileTool:
 # ---------------------------------------------------------------------------
 # WriteFileTool
 # ---------------------------------------------------------------------------
+
 
 class TestWriteFileTool:
     def test_write_new_file(self, tmp_path):
@@ -164,6 +162,7 @@ class TestWriteFileTool:
 # ---------------------------------------------------------------------------
 # ListDirectoryTool
 # ---------------------------------------------------------------------------
+
 
 class TestListDirectoryTool:
     def test_list_existing_directory(self, tmp_path):

@@ -1,7 +1,8 @@
 import subprocess
-from typing import Any, Callable, Dict, Optional
-from .base import BaseTool, ToolResult
+from collections.abc import Callable
+
 from ..guardrails.command_validator import CommandValidator, RiskLevel
+from .base import BaseTool, ToolResult
 
 
 class BashTool(BaseTool):
@@ -25,8 +26,8 @@ class BashTool(BaseTool):
 
     def __init__(
         self,
-        validator: Optional[CommandValidator] = None,
-        approval_callback: Optional[Callable[[str, RiskLevel, str], bool]] = None,
+        validator: CommandValidator | None = None,
+        approval_callback: Callable[[str, RiskLevel, str], bool] | None = None,
     ):
         self.validator = validator or CommandValidator()
         self.approval_callback = approval_callback
@@ -57,7 +58,10 @@ class BashTool(BaseTool):
                         "Pass an approval_callback to BashTool or use create_default_registry()."
                     ),
                     exit_code=130,
-                    metadata={"risk_level": validation.risk_level.value, "approved": False},
+                    metadata={
+                        "risk_level": validation.risk_level.value,
+                        "approved": False,
+                    },
                 )
             approved = self.approval_callback(command, validation.risk_level, validation.reason)
             if not approved:
@@ -66,7 +70,10 @@ class BashTool(BaseTool):
                     output="",
                     error=f"Human operator REJECTED command execution: {command}",
                     exit_code=130,
-                    metadata={"risk_level": validation.risk_level.value, "approved": False},
+                    metadata={
+                        "risk_level": validation.risk_level.value,
+                        "approved": False,
+                    },
                 )
 
         # 3. Execution
@@ -104,6 +111,6 @@ class BashTool(BaseTool):
             return ToolResult(
                 success=False,
                 output="",
-                error=f"Subprocess execution error: {str(e)}",
+                error=f"Subprocess execution error: {e!s}",
                 exit_code=1,
             )

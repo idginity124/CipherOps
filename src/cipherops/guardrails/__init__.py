@@ -1,10 +1,10 @@
-from .pii_sanitizer import PIISanitizer, PIIMatch
-from .command_validator import CommandValidator, RiskLevel, ValidationResult  # noqa: F401
+from .command_validator import CommandValidator, RiskLevel, ValidationResult
+from .pii_sanitizer import PIIMatch, PIISanitizer
 
 __all__ = [
-    "PIISanitizer",
-    "PIIMatch",
     "CommandValidator",
+    "PIIMatch",
+    "PIISanitizer",
     "RiskLevel",
     "ValidationResult",
 ]

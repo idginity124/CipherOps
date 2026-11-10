@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 @dataclass
 class ToolResult:
     success: bool
     output: str
-    error: Optional[str] = None
+    error: str | None = None
     exit_code: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_string(self) -> str:
         if self.success:
@@ -22,14 +22,13 @@ class BaseTool(ABC):
 
     name: str = ""
     description: str = ""
-    parameters: Dict[str, Any] = {}
+    parameters: dict[str, Any] = {}
 
     @abstractmethod
     def execute(self, **kwargs) -> ToolResult:
         """Synchronously execute the tool with validated arguments."""
-        pass
 
-    def to_ollama_format(self) -> Dict[str, Any]:
+    def to_ollama_format(self) -> dict[str, Any]:
         """Convert tool schema into Ollama / OpenAI standard tool definition."""
         return {
             "type": "function",
