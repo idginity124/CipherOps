@@ -21,6 +21,10 @@ class ToolRegistry:
     def to_ollama_tools(self) -> list[dict]:
         return [tool.to_ollama_format() for tool in self._tools.values()]
 
+    def to_provider_tools(self) -> list[dict]:
+        """Return the shared function-tool schema used by local provider APIs."""
+        return [tool.to_provider_format() for tool in self._tools.values()]
+
 
 def create_default_registry(approval_callback=None) -> ToolRegistry:
     """Factory to create a standard registry with system tools."""

@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cipherops"
-version = "0.1.0"
-description = "Enterprise-Grade Local Autonomous Agent with Privacy Guardrails & Human-in-the-Loop Execution"
+version = "0.2.0"
+description = "Local-first tool-calling agent with user-managed memory and execution controls"
 authors = [
     { name = "Ekrem Bulgan", email = "developer@cipherops.local" }
 ]
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
-keywords = ["ai", "agent", "llm", "ollama", "privacy", "autonomous", "local", "guardrails"]
+keywords = ["ai", "agent", "llm", "ollama", "openai-compatible", "memory", "local", "guardrails"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -48,6 +48,7 @@ cipherops = "cipherops.cli:app"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
 line-length = 100

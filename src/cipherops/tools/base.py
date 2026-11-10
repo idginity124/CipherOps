@@ -28,8 +28,8 @@ class BaseTool(ABC):
     def execute(self, **kwargs) -> ToolResult:
         """Synchronously execute the tool with validated arguments."""
 
-    def to_ollama_format(self) -> dict[str, Any]:
-        """Convert tool schema into Ollama / OpenAI standard tool definition."""
+    def to_provider_format(self) -> dict[str, Any]:
+        """Convert tool schema into the common function-calling format."""
         return {
             "type": "function",
             "function": {
@@ -38,3 +38,7 @@ class BaseTool(ABC):
                 "parameters": self.parameters,
             },
         }
+
+    def to_ollama_format(self) -> dict[str, Any]:
+        """Backward-compatible alias for older callers."""
+        return self.to_provider_format()

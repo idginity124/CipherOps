@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -7,18 +8,139 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
+from rich.text import Text
 
 from .core.agent import AgentEvent, CipherAgent
-from .core.llm import OllamaClient
+from .core.llm import create_llm_client
 from .guardrails.command_validator import RiskLevel
+from .guardrails.pii_sanitizer import PIISanitizer
+from .memory import MemoryStore
 from .tools.registry import create_default_registry
 
 app = typer.Typer(
     name="cipherops",
-    help="CipherOps: Enterprise-Grade Local Autonomous Agent with Privacy Guardrails.",
+    help="CipherOps: local-first tool-calling agent with user-managed memory.",
     add_completion=False,
 )
 console = Console()
+memory_app = typer.Typer(help="Manage user-approved local memories.", no_args_is_help=True)
+app.add_typer(memory_app, name="memory")
+
+
+def _make_llm_client(provider: str, base_url: str | None, model: str | None):
+    try:
+        return create_llm_client(
+            provider=provider,
+            base_url=base_url,
+            model=model,
+            api_key=os.getenv("CIPHEROPS_LOCAL_API_KEY"),
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+
+def _get_enabled_memory(enabled: bool) -> MemoryStore | None:
+    if not enabled:
+        return None
+    store = MemoryStore()
+    memories = store.list_memories()
+    if not memories:
+        console.print("[yellow]No saved memories yet. Add one with `cipherops memory add`. [/]")
+        return None
+    preview, _ = PIISanitizer().sanitize(store.context_text())
+    console.print(
+        Panel(Text(preview), title="Saved notes to be included", border_style="yellow")
+    )
+    if not Confirm.ask(
+        "Send these notes to the configured model server for this session?", default=False
+    ):
+        return None
+    return store
+
+
+@memory_app.command("list")
+def memory_list():
+    """List locally saved memories."""
+    store = MemoryStore()
+    memories = store.list_memories()
+    if not memories:
+        console.print(f"No memories saved in {store.path}")
+        return
+    table = Table(title=f"Saved memories · {store.path}")
+    table.add_column("ID", style="cyan", no_wrap=True)
+    table.add_column("Title", style="bold")
+    table.add_column("Content")
+    table.add_column("Updated", style="dim")
+    for memory in memories:
+        table.add_row(
+            str(memory.id),
+            Text(memory.title),
+            Text(memory.content),
+            memory.updated_at,
+        )
+    console.print(table)
+
+
+@memory_app.command("add")
+def memory_add(
+    title: str = typer.Argument(..., help="Short name for this memory"),
+    content: str = typer.Argument(..., help="The exact information to remember"),
+):
+    """Save a memory explicitly; CipherOps never creates memories automatically."""
+    try:
+        memory = MemoryStore().add(title, content)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    console.print(f"Saved memory #{memory.id}: {memory.title}")
+
+
+@memory_app.command("edit")
+def memory_edit(
+    memory_id: int = typer.Argument(..., help="Memory ID from `cipherops memory list`"),
+    title: str | None = typer.Option(None, help="New title"),
+    content: str | None = typer.Option(None, help="Replacement content"),
+):
+    """Edit a saved memory by ID."""
+    if title is None and content is None:
+        raise typer.BadParameter("Provide --title or --content.")
+    try:
+        memory = MemoryStore().update(memory_id, title=title, content=content)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    if memory is None:
+        raise typer.BadParameter(f"Memory #{memory_id} does not exist.")
+    console.print(f"Updated memory #{memory.id}: {memory.title}")
+
+
+@memory_app.command("delete")
+def memory_delete(
+    memory_id: int = typer.Argument(..., help="Memory ID from `cipherops memory list`"),
+):
+    """Delete one saved memory after confirmation."""
+    store = MemoryStore()
+    memory = store.get(memory_id)
+    if memory is None:
+        raise typer.BadParameter(f"Memory #{memory_id} does not exist.")
+    if Confirm.ask(f"Delete memory #{memory.id} ({memory.title})?", default=False):
+        store.delete(memory_id)
+        console.print("Memory deleted.")
+    else:
+        console.print("Cancelled.")
+
+
+@memory_app.command("clear")
+def memory_clear():
+    """Delete all saved memories after confirmation."""
+    store = MemoryStore()
+    count = len(store.list_memories())
+    if count == 0:
+        console.print("No memories to delete.")
+        return
+    if Confirm.ask(f"Delete all {count} saved memories?", default=False):
+        store.clear()
+        console.print(f"Deleted {count} memories.")
+    else:
+        console.print("Cancelled.")
 
 
 def human_approval_callback(command: str, risk_level: RiskLevel, reason: str) -> bool:
@@ -70,9 +192,10 @@ def handle_agent_event(event: AgentEvent) -> None:
 
 @app.command()
 def doctor(
-    ollama_url: str = typer.Option("http://localhost:11434", help="Ollama API base URL"),
+    provider: str = typer.Option("ollama", help="Local provider: ollama or openai-compatible"),
+    base_url: str | None = typer.Option(None, help="Local server URL; defaults by provider"),
 ):
-    """Diagnose local system environment, GPU readiness, and Ollama status."""
+    """Check Python, a selected local model server, and the audit directory."""
     console.print(Panel.fit("[bold cyan]CipherOps System Doctor[/]", border_style="cyan"))
 
     table = Table(title="System & LLM Readiness", show_header=True, header_style="bold magenta")
@@ -83,24 +206,25 @@ def doctor(
     # 1. Python
     table.add_row("Python Runtime", "[green]OK[/]", sys.version.split()[0])
 
-    # 2. Ollama Daemon
-    client = OllamaClient(base_url=ollama_url)
+    # 2. Selected local model server
+    client = _make_llm_client(provider, base_url, None)
     is_healthy = asyncio.run(client.check_health())
+    server_url = getattr(client, "base_url", "")
 
     if is_healthy:
-        table.add_row("Ollama Service", "[green]ACTIVE[/]", f"Connected to {ollama_url}")
+        table.add_row("Local Model Server", "[green]ACTIVE[/]", f"{provider}: {server_url}")
         models = asyncio.run(client.list_local_models())
         models_str = ", ".join(models) if models else "No models downloaded yet"
         table.add_row(
-            "Local Models",
+            "Available Models",
             "[green]FOUND[/]" if models else "[yellow]NONE[/]",
             models_str,
         )
     else:
         table.add_row(
-            "Ollama Service",
+            "Local Model Server",
             "[red]INACTIVE[/]",
-            f"Cannot connect to {ollama_url}. Is 'systemctl start ollama' running?",
+            f"Cannot connect to {provider} at {server_url}.",
         )
 
     # 3. Audit Directory
@@ -113,14 +237,18 @@ def doctor(
 @app.command()
 def run(
     prompt: str = typer.Argument(..., help="Instruction or task for CipherOps to perform"),
-    model: str = typer.Option("qwen2.5-coder:14b", help="Model name on local Ollama"),
-    ollama_url: str = typer.Option("http://localhost:11434", help="Ollama base URL"),
+    model: str | None = typer.Option(None, help="Model name/tag on the selected local server"),
+    provider: str = typer.Option("ollama", help="Local provider: ollama or openai-compatible"),
+    base_url: str | None = typer.Option(None, help="Local server URL; defaults by provider"),
+    use_memory: bool = typer.Option(False, help="Offer saved memories to the model for this task"),
 ):
-    """Run a single autonomous task through CipherOps."""
-    client = OllamaClient(base_url=ollama_url, model=model)
+    """Run a single task using a local model server."""
+    client = _make_llm_client(provider, base_url, model)
+    memory_store = _get_enabled_memory(use_memory)
     registry = create_default_registry(approval_callback=human_approval_callback)
     agent = CipherAgent(
         llm_client=client,
+        memory_store=memory_store,
         registry=registry,
         event_callback=handle_agent_event,
     )
@@ -132,14 +260,18 @@ def run(
 
 @app.command()
 def chat(
-    model: str = typer.Option("qwen2.5-coder:14b", help="Model name on local Ollama"),
-    ollama_url: str = typer.Option("http://localhost:11434", help="Ollama base URL"),
+    model: str | None = typer.Option(None, help="Model name/tag on the selected local server"),
+    provider: str = typer.Option("ollama", help="Local provider: ollama or openai-compatible"),
+    base_url: str | None = typer.Option(None, help="Local server URL; defaults by provider"),
+    use_memory: bool = typer.Option(False, help="Offer saved memories to the model in this session"),
 ):
     """Start an interactive autonomous session."""
-    client = OllamaClient(base_url=ollama_url, model=model)
+    client = _make_llm_client(provider, base_url, model)
+    memory_store = _get_enabled_memory(use_memory)
     registry = create_default_registry(approval_callback=human_approval_callback)
     agent = CipherAgent(
         llm_client=client,
+        memory_store=memory_store,
         registry=registry,
         event_callback=handle_agent_event,
     )
@@ -147,7 +279,8 @@ def chat(
     console.print(
         Panel(
             "[bold cyan]CipherOps Interactive Session[/]\n"
-            f"[dim]Model: {model} | Guardrails: Active | Audit: Enabled[/]\n"
+            f"[dim]Provider: {provider} | Model: {client.model or 'server default'} | "
+            "Guardrails: Active | Audit: Enabled[/]\n"
             "Type 'exit' or 'quit' to terminate session. "
             "Type 'clear' to reset conversation history.",
             border_style="cyan",

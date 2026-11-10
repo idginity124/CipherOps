@@ -9,18 +9,18 @@
 &nbsp;
 <img src="https://img.shields.io/badge/Python-3.10%2B-blue?logo=python" alt="Python 3.10+">
 &nbsp;
-<img src="https://img.shields.io/badge/runs-100%25%20local-blueviolet" alt="Runs 100% local">
+<img src="https://img.shields.io/badge/inference-local%20server-blueviolet" alt="Local model server inference">
 &nbsp;
-<img src="https://img.shields.io/badge/tests-35%20passed-brightgreen" alt="35 tests">
+<img src="https://img.shields.io/badge/tests-47%20passed-brightgreen" alt="47 tests">
 &nbsp;
 <img src="https://img.shields.io/badge/guardrails-4--tier-orange" alt="4-tier guardrails">
 </p>
 
 <p align="center">
-An autonomous AI agent that runs <strong>entirely on your machine</strong>.<br>
-It reads files, executes terminal commands, and fixes code — <strong>without sending anything outside</strong>.
+An autonomous AI agent designed to use a <strong>local model server</strong>.<br>
+It reads files, executes terminal commands, and helps with code tasks.
 </p>
-<p align="center"><sub>Built on top of <a href="https://ollama.com">Ollama</a> · Designed for privacy-first and regulated environments · KVKK / GDPR ready</sub></p>
+<p align="center"><sub>Ollama or OpenAI-compatible local model servers · Connects to loopback addresses on this computer</sub></p>
 
 <p align="center"><img src="assets/terminal-demo.svg" width="840" alt="CipherOps terminal session"></p>
 
@@ -69,7 +69,7 @@ Agent core  ←── Think · plan · call tool · observe · repeat (up to 15 
 Audit logger  ←── append-only JSON Lines, one entry per event
 ```
 
-The local LLM (served by Ollama) is the only inference backend. **No OpenAI key required. No data leaves the machine.**
+CipherOps supports two local API styles: Ollama's native local API and the OpenAI-compatible `/v1/chat/completions` API. The latter can work with servers such as llama.cpp, LM Studio, and vLLM when the server API and selected model support tool calling. Without tool calling, the agent cannot use its tools. The model-provider adapter only connects to `localhost`, `127.0.0.1`, or `::1`; routing performed by the local server or shell commands is outside this application's control.
 
 ---
 
@@ -89,16 +89,23 @@ The local LLM (served by Ollama) is the only inference backend. **No OpenAI key 
 
 Python 3.10 or later is required.
 
-### 1. Install Ollama and a model
+### 1. Choose a local model server
 
+Ollama is the default provider:
 ```bash
-# Arch / CachyOS with an AMD GPU (ROCm)
-sudo pacman -S ollama-rocm
-sudo systemctl enable --now ollama
-ollama pull qwen2.5-coder:14b
+cipherops doctor --provider ollama
+cipherops chat --provider ollama --model qwen2.5-coder:14b
 ```
 
-For NVIDIA or CPU-only setups, replace `ollama-rocm` with `ollama-cuda` or `ollama`. Any model that supports tool calling in Ollama works (e.g. `llama3.1`, `mistral-nemo`, `deepseek-coder-v2`).
+For a local OpenAI-compatible API, start the server and provide its model ID:
+
+```bash
+cipherops doctor --provider openai-compatible --base-url http://localhost:1234/v1
+cipherops chat --provider openai-compatible \
+  --base-url http://localhost:1234/v1 --model MODEL_ID
+```
+
+The default URL is `http://localhost:1234/v1`, commonly used by LM Studio. llama.cpp and vLLM may use a different URL or model ID based on their configuration. If the local API requires a key, set `CIPHEROPS_LOCAL_API_KEY` in the environment; do not put the key in the command line. The server and selected model must support tool calling.
 
 ### 2. Install CipherOps
 
@@ -113,14 +120,14 @@ pip install -e .
 ### 3. Check the setup
 
 ```bash
-cipherops doctor
+cipherops doctor --provider ollama
 ```
 
 ```
   Component              Status      Details
   Python Runtime         OK          3.14.9
-  Ollama Service         ACTIVE      Connected to http://localhost:11434
-  Local Models           FOUND       qwen2.5-coder:14b
+  Local Model Server     ACTIVE      ollama: http://localhost:11434
+  Available Models       FOUND       qwen2.5-coder:14b
   Audit Trail Directory  CONFIGURED  /home/user/.cipherops/audit
 ```
 
@@ -155,6 +162,20 @@ CipherOps > clear    ← resets conversation history
 CipherOps > exit
 Session ended. Goodbye! 👋
 ```
+
+### Persistent memory (opt-in)
+
+CipherOps does not learn by retraining its model and never saves memories automatically. Add only the preferences or facts you choose to keep:
+
+```bash
+cipherops memory add "Reply language" "Prefer Turkish unless I ask otherwise"
+cipherops memory list
+cipherops memory edit 1 --content "Use concise Turkish responses"
+cipherops memory delete 1
+cipherops memory clear
+```
+
+Saved notes live in `~/.cipherops/memory.sqlite3` with owner-only file permissions on Linux/macOS. They are not included in model requests by default. Pass `--use-memory` to `cipherops chat` or `cipherops run` to opt in; CipherOps previews the notes and asks for confirmation before adding them to requests sent to the configured model server. The existing PII filter is applied to notes before sending. Never save passwords, API keys, or other secrets. This is persistent context, not model training.
 
 ### Human-in-the-loop approval
 
@@ -217,7 +238,7 @@ CipherOps/
 ├── src/cipherops/
 │   ├── core/
 │   │   ├── agent.py           ReAct loop, context trim, event callbacks
-│   │   └── llm.py             Ollama HTTP client, tool-call parsing
+│   │   └── llm.py             Ollama and OpenAI-compatible local server adapters
 │   ├── guardrails/
 │   │   ├── pii_sanitizer.py   Regex + checksum detection, single-pass redaction
 │   │   └── command_validator.py  4-tier firewall + execution wrapper blocking
@@ -228,11 +249,15 @@ CipherOps/
 │   │   └── registry.py        Tool registry and factory
 │   ├── audit/
 │   │   └── logger.py          Thread-safe append-only JSON Lines logger
-│   └── cli.py                 Typer CLI — doctor · run · chat
+│   ├── memory/
+│   │   └── store.py           User-managed SQLite memory store
+│   └── cli.py                 Typer CLI — doctor · run · chat · memory
 └── tests/
     ├── test_guardrails.py     PII sanitizer + command firewall (5 tests)
     ├── test_tools.py          BashTool + file tools (22 tests)
-    └── test_audit.py          AuditLogger including thread-safety (7 tests + 1 stress)
+    ├── test_audit.py          AuditLogger including thread-safety
+    ├── test_local_providers.py  Local provider API contracts (5 tests)
+    └── test_memory.py         Persistent memory and opt-in use (7 tests)
 ```
 
 ---
@@ -254,7 +279,7 @@ tests/test_tools.py::TestWriteFileTool::test_blocked_system_path_etc      PASSED
 tests/test_guardrails.py::test_tckn_masking                               PASSED
 tests/test_guardrails.py::test_command_firewall_blocks_catastrophic       PASSED
 
-35 passed in 0.12s
+47 passed
 ```
 
 ---

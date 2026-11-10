@@ -9,18 +9,18 @@
 &nbsp;
 <img src="https://img.shields.io/badge/Python-3.10%2B-blue?logo=python" alt="Python 3.10+">
 &nbsp;
-<img src="https://img.shields.io/badge/çalışır-tamamen%20yerel-blueviolet" alt="Tamamen yerel">
+<img src="https://img.shields.io/badge/çıkarım-yerel%20sunucu-blueviolet" alt="Yerel model sunucusu">
 &nbsp;
-<img src="https://img.shields.io/badge/testler-35%20geçti-brightgreen" alt="35 test">
+<img src="https://img.shields.io/badge/testler-47%20geçti-brightgreen" alt="47 test">
 &nbsp;
 <img src="https://img.shields.io/badge/guardrails-4%20katman-orange" alt="4 katman güvenlik">
 </p>
 
 <p align="center">
-Tamamen kendi bilgisayarınızda çalışan bir yapay zeka ajanı.<br>
-Dosya okur, terminal komutları çalıştırır, kod düzeltir — <strong>dışarıya hiçbir şey göndermeden</strong>.
+Yerel model sunucusuyla çalışmak üzere tasarlanmış bir yapay zeka ajanı.<br>
+Dosya okur, terminal komutları çalıştırır ve kod işleri için yardımcı olur.
 </p>
-<p align="center"><sub><a href="https://ollama.com">Ollama</a> üzerine kurulu · Gizlilik ve kurumsal ortamlar için tasarlandı · KVKK / GDPR uyumlu</sub></p>
+<p align="center"><sub>Ollama veya OpenAI uyumlu yerel model sunucuları · Bu bilgisayardaki loopback adreslerine bağlanır</sub></p>
 
 <p align="center"><img src="assets/terminal-demo.svg" width="840" alt="CipherOps terminal oturumu"></p>
 
@@ -69,7 +69,7 @@ Ajan çekirdeği  ←── Düşün · planla · araç çağır · gözlemle ·
 Denetim günlüğü  ←── Her olay için ek-tabanlı JSON Lines kaydı
 ```
 
-Yerel LLM (Ollama üzerinden sunulan) tek çıkarım motorudur. **OpenAI anahtarı gerekmez. Verileriniz makineden çıkmaz.**
+CipherOps iki yerel API biçimini destekler: Ollama'nın yerel API'si ve OpenAI uyumlu `/v1/chat/completions` API'si. İkinci biçim, API uyumluluğu ve modelde araç çağırma desteği olduğu sürece llama.cpp, LM Studio ve vLLM gibi sunucularla kullanılabilir. Model sunucusu/model araç çağırmayı desteklemiyorsa ajan araç kullanamaz. LLM sağlayıcı adaptörü yalnızca `localhost`, `127.0.0.1` veya `::1` adreslerine bağlanır; sunucunun veya shell komutlarının kendi ağ davranışı bu sınırın dışındadır.
 
 ---
 
@@ -89,16 +89,24 @@ Yerel LLM (Ollama üzerinden sunulan) tek çıkarım motorudur. **OpenAI anahtar
 
 Python 3.10 veya üzeri gereklidir.
 
-### 1. Ollama ve model kurulumu
+### Yerel model sunucusu seçimi
+
+Ollama varsayılan sağlayıcıdır:
 
 ```bash
-# AMD GPU'lu Arch / CachyOS için (ROCm)
-sudo pacman -S ollama-rocm
-sudo systemctl enable --now ollama
-ollama pull qwen2.5-coder:14b
+cipherops doctor --provider ollama
+cipherops chat --provider ollama --model qwen2.5-coder:14b
 ```
 
-NVIDIA veya yalnızca CPU için `ollama-rocm` yerine `ollama-cuda` ya da `ollama` kullanın. Ollama'da araç çağırmayı destekleyen herhangi bir model çalışır (ör. `llama3.1`, `mistral-nemo`, `deepseek-coder-v2`).
+OpenAI uyumlu yerel API için sunucuyu başlatıp model kimliğini ver:
+
+```bash
+cipherops doctor --provider openai-compatible --base-url http://localhost:1234/v1
+cipherops chat --provider openai-compatible \
+  --base-url http://localhost:1234/v1 --model MODEL_KIMLIGI
+```
+
+Varsayılan adres LM Studio örneği olan `http://localhost:1234/v1`'dir. llama.cpp ve vLLM sunucularında adres ve model kimliği, sunucunun kendi ayarlarına göre değişebilir. Yerel API anahtarı gerekiyorsa `CIPHEROPS_LOCAL_API_KEY` ortam değişkenini kullan; anahtarı komut satırına yazma. Sunucu ve seçilen model araç çağırmayı desteklemelidir.
 
 ### 2. CipherOps kurulumu
 
@@ -113,14 +121,14 @@ pip install -e .
 ### 3. Kurulumu kontrol edin
 
 ```bash
-cipherops doctor
+cipherops doctor --provider ollama
 ```
 
 ```
   Bileşen                Durum       Detay
   Python Sürümü          OK          3.14.9
-  Ollama Servisi         AKTİF       http://localhost:11434 bağlı
-  Yerel Modeller         BULUNDU     qwen2.5-coder:14b
+  Yerel Model Sunucusu   AKTİF       ollama: http://localhost:11434
+  Kullanılabilir Modeller BULUNDU    qwen2.5-coder:14b
   Denetim Günlüğü        AYARLANDI   /home/kullanici/.cipherops/audit
 ```
 
@@ -155,6 +163,20 @@ CipherOps > clear    ← konuşma geçmişini sıfırlar
 CipherOps > exit
 Oturum sonlandı. Görüşmek üzere! 👋
 ```
+
+### Kalıcı hafıza (isteğe bağlı)
+
+CipherOps modelini yeniden eğiterek öğrenmez ve kendiliğinden hafıza kaydetmez. Yalnızca saklamak istediğin tercihleri veya bilgileri sen ekle:
+
+```bash
+cipherops memory add "Yanıt dili" "Aksi söylenmedikçe Türkçe yanıt ver"
+cipherops memory list
+cipherops memory edit 1 --content "Kısa ve anlaşılır Türkçe yanıtları tercih ediyorum"
+cipherops memory delete 1
+cipherops memory clear
+```
+
+Kayıtlar `~/.cipherops/memory.sqlite3` dosyasında, Linux/macOS'ta yalnızca sahibi erişebilecek izinlerle tutulur. Varsayılan olarak model isteklerine eklenmez. Kullanmak için `cipherops chat` veya `cipherops run` komutuna `--use-memory` ekle; CipherOps gönderilecek notları önce gösterir, ardından onay ister ve bilinen PII değerlerini maskeleyerek gönderir. Parola, API anahtarı veya başka sırları hafızaya kaydetme. Bu özellik model eğitimi değil, sonraki oturumlarda kullanılabilen kalıcı bağlamdır.
 
 ### İnsan onayı sistemi
 
@@ -217,7 +239,7 @@ CipherOps/
 ├── src/cipherops/
 │   ├── core/
 │   │   ├── agent.py           ReAct döngüsü, context budama, olay geri çağırmaları
-│   │   └── llm.py             Ollama HTTP istemcisi, araç çağrısı ayrıştırma
+│   │   └── llm.py             Ollama ve OpenAI uyumlu yerel sunucu adaptörleri
 │   ├── guardrails/
 │   │   ├── pii_sanitizer.py   Regex + checksum tespiti, tek geçişli maskeleme
 │   │   └── command_validator.py  4 katman güvenlik + sarmalayıcı engelleme
@@ -228,11 +250,15 @@ CipherOps/
 │   │   └── registry.py        Araç kaydı ve fabrika
 │   ├── audit/
 │   │   └── logger.py          Thread-safe ek-tabanlı JSON Lines günlükçü
-│   └── cli.py                 Typer CLI — doctor · run · chat
+│   ├── memory/
+│   │   └── store.py           Kullanıcı denetimli SQLite hafızası
+│   └── cli.py                 Typer CLI — doctor · run · chat · memory
 └── tests/
     ├── test_guardrails.py     PII maskeleme + komut güvenlik duvarı (5 test)
     ├── test_tools.py          BashTool + dosya araçları (22 test)
-    └── test_audit.py          AuditLogger + thread güvenliği (7 test + 1 stress)
+    ├── test_audit.py          AuditLogger + thread güvenliği
+    ├── test_local_providers.py Yerel sağlayıcı API sözleşmeleri (5 test)
+    └── test_memory.py         Kalıcı hafıza ve açık kullanım (7 test)
 ```
 
 ---
@@ -254,7 +280,7 @@ tests/test_tools.py::TestWriteFileTool::test_blocked_system_path_etc      PASSED
 tests/test_guardrails.py::test_tckn_masking                               PASSED
 tests/test_guardrails.py::test_command_firewall_blocks_catastrophic       PASSED
 
-35 passed in 0.12s
+47 passed
 ```
 
 ---
